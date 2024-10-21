@@ -291,7 +291,7 @@ if __name__ == "__main__":
     # Add the labels to the activities
     users = add_labels(users)
     # Printing the users, activities and trackpoints
-    num_users, num_activities, num_trackpoints = count(users)   
+    num_users, num_activities, num_trackpoints = count(users)
     print(f"Number of users: {num_users}")
     print(f"Number of activities: {num_activities}")
     print(f"Number of trackpoints: {num_trackpoints}")
