@@ -12,27 +12,40 @@ class ProgramQueries:
 
     def query1(self):
     ## How many users, activities and trackpoints there are in the dataset
-    ## TODO å teste disse
         query_users = self.db.User.count_documents({})
-        # query_activity = self.db.Activity.find().count()
-        # query_trackpoint = self.db.Trackpoint.find().count()
-
-        pprint("Number of users".format(query_users))
-        # print("Number of activities".format(query_activity))
-        # print("Number of trackpoints".format(query_trackpoint))
+        query_activity = self.db.Activity.count_documents({})
+        query_trackpoints = self.db.Trackpoint.count_documents({})
         
+        pprint(f"Number of users: {query_users}")
+        pprint(f"Number of activities: {query_activity}")
+        pprint(f"Number of trackpoints: {query_trackpoints}")
+       
     
     def query2(self):
     # Find the average number of activities per user
         
-        activity_count_pr_user = self.db.get_collection('Activity').aggregate([
-            {"$group": {"_id": "$user_id", "activity_count": {"$sum": 1}}},
-        ])
+        pipeline = [
+                    {
+                        "$group": {
+                            "_id": "$user_id",  # Group by user_id
+                            "activities_per_user": { "$count": {} }  # Count the number of activities per user
+                        }
+                    },
+                    {
+                        "$group": {
+                            "_id": None,
+                            "average_activities_per_user": { "$avg": "$activities_per_user" }  # Calculate average
+                        }
+                    }
+                ]
 
-        total_activities = sum([doc["activity_count"] for doc in activity_count_pr_user])
-        avg_activities_per_user = total_activities / len(activity_count_pr_user)
-        
-        pprint("Average number of activities per user: {:.2f}".format(avg_activities_per_user))
+        # Run the aggregation pipeline
+        result = self.db.Activity.aggregate(pipeline)
+
+        # Retrieve and print the result
+        for item in result:
+            pprint(f"Average number of activities per user: {item['average_activities_per_user']:.2f}")
+
 
 
     def query3(self):
@@ -76,11 +89,11 @@ class ProgramQueries:
     
     def query5(self):
     # All types of transportation modes and count how many activities that are tagged with these transportation mode labels
-    # Do not count the rows where the mode is null
+    # # Do not count the rows where the mode is null
         query = [
             {
                 "$match": {
-                    "transportation_mode": {"$ne": None} # Exclude where mode is null
+                    "transportation_mode": {"$ne": None}, # Exclude where mode is null
                     "user_id": {"$in": self.db.User.distinct("_id", {"has_labels": True})} #only users with labels
                 }
             },
@@ -209,7 +222,7 @@ class ProgramQueries:
     # Remember that some altitude meters are invalid 
     # Tip: math formula (look at task sheet)¨
     # Note: Remember that we are looking for altitude GAIN 
-        query = [
+        pipeline = [
             {
                 "$lookup": {
                     "from": "TrackPoint",
@@ -238,7 +251,7 @@ class ProgramQueries:
 
         alt_gain_per_user = {}
 
-        for activitiy in valid_activities:
+        for activity in valid_activities:
             user_id = activity["_id"]["user_id"]
             trackpoints = activity["trackpoints"]
 
@@ -252,7 +265,7 @@ class ProgramQueries:
                 prev_alt = trackpoints[i - 1]["altitude"]
 
                 if curr_alt > prev_alt:
-                    activity_total_gain += (current_alt - previous_altitude)
+                    activity_total_gain += (curr_alt - prev_alt)
 
             if user_id in alt_gain_per_user:
                 alt_gain_per_user[user_id] += activity_total_gain
@@ -277,28 +290,200 @@ class ProgramQueries:
 
 
     def query9(self):
-    # All users who have invalid activities, and the number of invalid activities per user
-    # An invalid activity is defined as an activity with consecutive trackpoints where the timestamps deviate with at least 5 minutes
+    # Find all users who have invalid activities
+    # An invalid activity is defined as an activity with consecutive trackpoints where the time deviates >= 5 minutes
 
-        return 
+        # Ensure necessary indexes exist
+        self.db.Trackpoint.create_index("activity_id")
+        self.db.Activity.create_index("user_id")
+        
+        # Retrieve users who have labels
+        users_with_labels = self.db.User.distinct("_id", {"has_labels": True})
+
+        # Aggregation pipeline
+        pipeline = [
+            {
+                "$match": {
+                    "user_id": {"$in": users_with_labels}  # Only users with labels
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "Trackpoint",  # Join with Trackpoint collection
+                    "localField": "_id",  # Match Activity _id with Trackpoint activity_id
+                    "foreignField": "activity_id",
+                    "as": "trackpoints"
+                }
+            },
+            {
+                "$match": {
+                    "trackpoints.1": {"$exists": True}  # Only activities with at least 2 trackpoints
+                }
+            },
+            {
+                "$sort": {
+                    "trackpoints.date_time": 1  # Sort trackpoints by date_time
+                }
+            },
+            {
+                "$project": {
+                    "user_id": 1,
+                    "trackpoints.date_time": 1  # Only project the user ID and trackpoint times
+                }
+            }
+        ]
+
+        # Get activities with their trackpoints
+        activities = list(self.db.Activity.aggregate(pipeline))
+        
+        # Dictionary to store invalid activity count per user
+        invalid_activities_per_user = {}
+
+        # Process each activity's trackpoints to check for invalid time deviations
+        for activity in activities:
+            user_id = activity['user_id']
+            trackpoints = activity['trackpoints']
+            
+            # Convert trackpoints into datetime objects
+            trackpoint_times = [tp['date_time'] for tp in trackpoints]
+            
+            # Check if there is a time deviation of >= 5 minutes between consecutive trackpoints
+            is_invalid = any(
+                (trackpoint_times[i] - trackpoint_times[i - 1]).total_seconds() >= 300
+                for i in range(1, len(trackpoint_times))
+            )
+
+            # If the activity is invalid, increment the count for the user
+            if is_invalid:
+                if user_id in invalid_activities_per_user:
+                    invalid_activities_per_user[user_id] += 1
+                else:
+                    invalid_activities_per_user[user_id] = 1
+
+        # Sort users by user_id for output
+        sorted_invalid_activities = sorted(invalid_activities_per_user.items())
+
+        # Print the results using prettyprint
+        print("Users with invalid activities (time deviation >= 5 minutes):")
+        for user_id, invalid_count in sorted_invalid_activities:
+            pprint({
+                "User ID": user_id,
+                "Invalid Activities": invalid_count
+            })
+
+        return invalid_activities_per_user
 
 
     def query10(self):
-    # Users who have tracked an activity in the Forbidden City of Beijing
-    # Forbidden City of Beijing coordinates: lat 39.916, lon 116.397
-    # Find trackpoints tracked in the forbidden city
+        # Users who have tracked an activity in the Forbidden City of Beijing
+        # Forbidden City of Beijing coordinates: lat 39.916, lon 116.397
+        # Find trackpoints tracked in the forbidden city
+        
+        # Debug: Count total trackpoints
+        total_trackpoints = self.db.Trackpoint.count_documents({})
+        print(f"Total Trackpoints: {total_trackpoints}")
 
-        return 
+        # Debug: Count trackpoints in the specified coordinate range
+        trackpoints_in_range = self.db.Trackpoint.count_documents({
+            "lat": {"$gte": 39.915, "$lte": 39.917},
+            "lon": {"$gte": 116.396, "$lte": 116.398}
+        })
+        print(f"Trackpoints in Forbidden City range: {trackpoints_in_range}")
+
+        pipeline = [
+            {
+                "$match": {
+                    "lat": {"$gte": 39.915, "$lte": 39.917},  # Latitude range
+                    "lon": {"$gte": 116.396, "$lte": 116.398}  # Longitude range
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "Activity",  # Join with Activity collection
+                    "localField": "activity_id",  # Match Trackpoint activity_id with Activity id
+                    "foreignField": "_id",
+                    "as": "activity_info"  # Rename the joined Activity info
+                }
+            },
+            {
+                "$unwind": "$activity_info"  # Flatten the joined data
+            },
+            {
+                "$group": {
+                    "_id": "$activity_info.user_id"  # Group by user_id
+                }
+            }
+        ]
+
+        # Execute the aggregation pipeline
+        users_forbidden_city = list(self.db.Trackpoint.aggregate(pipeline))
+
+        # Extract user IDs from the result
+        user_ids = [user["_id"] for user in users_forbidden_city]
+
+        # Print the results using prettyprint
+        print("Users who have tracked an activity in the Forbidden City of Beijing:")
+        if user_ids:
+            for user_id in user_ids:
+                pprint({"User ID": user_id})
+        else:
+            print("No users found.")
+
+        return user_ids
 
     
     def query11(self):
-    # All users who have registered transportation_mode and their most used transportation_mode
-    # The answer should be on format (user_id, most_used_transportation_mode) sorted on user_id
-    # Some users may have the same number of activities tagged with e.g. walk and car. 
-    # In this case it is up to you to decide which transportation mode to include in your answer (choose one)
-    # Do not count the rows where the mode is null
+        # All users who have registered transportation_mode and their most used transportation_mode
+        # The answer should be in the format (user_id, most_used_transportation_mode) sorted by user_id
+        # Do not count the rows where the mode is null
 
-        return
+        pipeline = [
+            {
+                "$match": {
+                    "transportation_mode": {"$ne": None}  # Exclude rows with null transportation_mode
+                }
+            },
+            {
+                "$group": {
+                    "_id": {
+                        "user_id": "$user_id",
+                        "transportation_mode": "$transportation_mode"
+                    },
+                    "mode_count": {"$sum": 1}  # Count occurrences of each transportation mode for each user
+                }
+            },
+            {
+                "$sort": {
+                    "_id.user_id": 1,  # Sort by user_id
+                    "mode_count": -1   # Sort by mode_count in descending order
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$_id.user_id",
+                    "most_used_transportation_mode": {"$first": "$_id.transportation_mode"},  # Get the most used transportation mode
+                    "mode_count": {"$first": "$mode_count"}  # Get the count of the most used mode (optional)
+                }
+            },
+            {
+                "$sort": {
+                    "_id": 1  # Final sort by user_id
+                }
+            }
+        ]
+
+        # Execute the aggregation pipeline
+        transportation_modes = list(self.db.Activity.aggregate(pipeline))
+
+        # Format the results as a list of tuples (user_id, most_used_transportation_mode)
+        result = [(str(mode["_id"]), mode["most_used_transportation_mode"]) for mode in transportation_modes]
+
+        # Print results using prettyprint
+        print("Users who have registered transportation_mode and their most used transportation_mode:")
+        for user_id, transportation_mode in result:
+            pprint({"User ID": user_id, "Most used transportation mode": transportation_mode})
+
+        return result
     
     def close_connection(self):
         self.connection.close_connection()
