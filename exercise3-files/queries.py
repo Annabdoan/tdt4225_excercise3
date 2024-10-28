@@ -220,7 +220,7 @@ class ProgramQueries:
     # Find the top 20 users who have gained the most altitude meters
     # Output should be a table with (id, total meters gained per user)
     # Remember that some altitude meters are invalid 
-    # Tip: math formula (look at task sheet)¨
+    # Tip: math formula (look at task sheet)
     # Note: Remember that we are looking for altitude GAIN 
         pipeline = [
             {
@@ -260,12 +260,13 @@ class ProgramQueries:
                 continue
 
             activity_total_gain = 0
+
             for i in range(1, len(trackpoints)):
                 curr_alt = trackpoints[i]["altitude"]
                 prev_alt = trackpoints[i - 1]["altitude"]
 
                 if curr_alt > prev_alt:
-                    activity_total_gain += (curr_alt - prev_alt)
+                    activity_total_gain += (curr_alt - prev_alt) * 0.3048 # convert to meters (1 foot = 0.3048 meters)
 
             if user_id in alt_gain_per_user:
                 alt_gain_per_user[user_id] += activity_total_gain
