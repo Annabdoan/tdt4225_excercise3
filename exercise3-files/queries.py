@@ -2,6 +2,7 @@ from DbConnector import DbConnector
 from tabulate import tabulate 
 from math import radians, sin, cos, sqrt, atan2
 from pprint import pprint
+from datetime import datetime
 
 class ProgramQueries:
     def __init__(self):
@@ -187,7 +188,7 @@ class ProgramQueries:
         walking_activities = self.db.Activity.find({
             "user_id": 112,
             "transportation_mode": "walk",
-            "start_date_time": {"$gte": "2008-01-01", "$lt": "2009-01-01"}
+            "start_date_time": {"$gte": datetime(2008, 1, 1), "$lt": datetime(2009, 1, 1)}
         }, {"_id": 1})
 
         total_distance = 0
