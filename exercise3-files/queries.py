@@ -223,7 +223,7 @@ class ProgramQueries:
     # Remember that some altitude meters are invalid 
     # Tip: math formula (look at task sheet)
     # Note: Remember that we are looking for altitude GAIN 
-        pipeline = [
+        query = [
             {
                 "$lookup": {
                     "from": "TrackPoint",
@@ -242,13 +242,13 @@ class ProgramQueries:
             },
             {
                 "$group": {
-                    "_id": {"user_id": "$user_id", "activity_id": "$_id"},
+                    "_id": {"user_id": "$user_id"},
                     "trackpoints": {"$push": "$trackpoints"}
                 }
             }
         ]
 
-        valid_activities = list(self.db.Activity.aggregate(pipeline))
+        valid_activities = list(self.db.Activity.aggregate(query))
 
         alt_gain_per_user = {}
 
