@@ -504,7 +504,7 @@ def main():
         # program.query8()
         # program.query9()
         # program.query10()
-        # program.query11()
+        program.query11()
     except Exception as e:
         print("ERROR: Failed to use database:", e)
     finally:
