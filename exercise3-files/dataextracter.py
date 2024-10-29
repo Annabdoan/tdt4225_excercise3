@@ -8,7 +8,7 @@ from datetime import datetime
 import math
 
 ######### CHANGE THIS PATH TO YOUR OWN PATH #########
-path = "/Users/andreasbuervase/Desktop/4.klasse Indøk/Store, distribuerte datamengder/Group project/tdt4225/assignment2_2024/dataset/dataset"
+path = "/Users/annadoan/Documents/tdt4225_excercise3/dataset/dataset"
 ####################################################
 
 # Function which goes through all the .tlp files in /assignment2_2024/dataset/dataset/Data, extract the data and create User, Activity and Trackpoint objects

@@ -126,3 +126,8 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+#dataset
+exercise3-files/dataset/
+dataset/

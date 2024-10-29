@@ -218,20 +218,13 @@ class ProgramQueries:
     
 
     def query8(self):
-    # Find the top 20 users who have gained the most altitude meters
-    # Output should be a table with (id, total meters gained per user)
-    # Remember that some altitude meters are invalid 
-    # Tip: math formula (look at task sheet)
-    # Note: Remember that we are looking for altitude GAIN 
-        query = [
-            {
-                "$match": {
-                    "user_id": {"$exists": True}  # Only include valid users
-                }
-            },
+        print("Running aggregation pipeline...")
+
+        # Adjusted pipeline
+        pipeline = [
             {
                 "$lookup": {
-                    "from": "TrackPoint",
+                    "from": "Trackpoint",
                     "localField": "_id",
                     "foreignField": "activity_id",
                     "as": "trackpoints"
@@ -239,23 +232,61 @@ class ProgramQueries:
             },
             {
                 "$match": {
-                    "trackpoints.altitude": {"$ne": -777}  # Exclude invalid altitudes
+                    "trackpoints": {"$ne": []}  # Ensures only activities with trackpoints are considered
+                }
+            },
+            {
+                "$unwind": "$trackpoints"
+            },
+            {
+                "$match": {
+                    "trackpoints.altitude": {"$ne": -777}  # Filters out invalid altitudes
+                }
+            },
+            {
+                "$group": {
+                    "_id": {"user_id": "$user_id", "activity_id": "$_id"},
+                    "trackpoints": {"$push": "$trackpoints"}
                 }
             }
         ]
 
-        # Execute the aggregation pipeline
-        valid_activities = list(self.db.Activity.aggregate(query))
+        # Run the aggregation pipeline
+        valid_activities = list(self.db.Activity.aggregate(pipeline))
+        print(f"Number of valid activities returned after pipeline: {len(valid_activities)}")
+
+        # Ensure there are valid activities to process
+        if not valid_activities:
+            print("No activities found with valid altitude data.")
+            return []
+
+        # Debug: Print structure of first valid activity to confirm correct indexing
+        print("Sample structure of first valid activity:", valid_activities[0])
 
         # Dictionary to store total altitude gain per user
         alt_gain_per_user = {}
 
-        for activity in valid_activities:
-            user_id = activity["user_id"]
-            trackpoints = sorted(activity["trackpoints"], key=lambda tp: tp["date_time"])
+        # Iterate over each valid activity to compute altitude gain
+        for idx, activity in enumerate(valid_activities):
+            # Confirm if '_id' and 'trackpoints' are correctly accessible
+            if '_id' not in activity or 'trackpoints' not in activity:
+                print(f"Skipping invalid structure in activity {idx}:", activity)
+                continue
 
-            # Ensure we have enough trackpoints to calculate altitude gain
+            user_id = activity["_id"].get("user_id")
+            trackpoints = activity["trackpoints"]
+
+            # Ensure trackpoints list is non-empty and correctly structured
+            if not trackpoints or not isinstance(trackpoints, list):
+                print(f"Skipping activity {idx} due to empty or invalid trackpoints:", trackpoints)
+                continue
+
+            # Ensure trackpoints are sorted by date
+            trackpoints = sorted(trackpoints, key=lambda tp: tp["date_time"])
+
+            # Check for at least two valid trackpoints
             if len(trackpoints) < 2:
+                print(f"Not enough trackpoints for altitude gain calculation in activity {idx}.")
                 continue
 
             activity_total_gain = 0
@@ -263,30 +294,41 @@ class ProgramQueries:
                 curr_alt = trackpoints[i].get("altitude")
                 prev_alt = trackpoints[i - 1].get("altitude")
 
-                # Only add positive gains and ignore missing altitude values
-                if curr_alt is not None and prev_alt is not None and curr_alt > prev_alt:
-                    activity_total_gain += (curr_alt - prev_alt) * 0.3048  # Convert from feet to meters
+                # Calculate positive altitude gain
+                if curr_alt and prev_alt and curr_alt > prev_alt:
+                    gain = (curr_alt - prev_alt) * 0.3048
+                    activity_total_gain += gain
+                    print(f"Altitude gain between points {i-1} and {i}: {gain:.2f} meters")
 
-            # Sum the altitude gains per user
+            # Accumulate total gain for each user
             if user_id in alt_gain_per_user:
                 alt_gain_per_user[user_id] += activity_total_gain
             else:
                 alt_gain_per_user[user_id] = activity_total_gain
 
-        # Sort users by total altitude gain and get the top 20
+            # Debug: Show calculated gain for each activity
+            print(f"Total altitude gain for Activity {activity['_id']['activity_id']}: {activity_total_gain:.2f} meters")
+
+        # Display altitude gain per user
+        print("\nAltitude gain per user:", alt_gain_per_user)
+
+        # Sort and get top 20 users by altitude gain
         top_20_users = sorted(alt_gain_per_user.items(), key=lambda x: x[1], reverse=True)[:20]
 
-        # Format and display results
+        # Print top 20 users
+        print("Top 20 users with altitude gain:")
+        for user_id, gain in top_20_users:
+            print(f"User ID: {user_id}, Total Gain: {gain:.2f} meters")
+
+        # Format the results
         table_data = [(user_id, f"{total_gain:.2f} meters") for user_id, total_gain in top_20_users]
         table = tabulate(table_data, headers=["User ID", "Total Altitude Gain"], tablefmt="pretty")
 
-        print("Top 20 users with the most altitude gain:")
+        print("\nFormatted Top 20 Users with the Most Altitude Gain:")
         print(table)
 
-        # Pretty print the result
-        pprint({"Top 20 Users by Altitude Gain": top_20_users})
-
         return top_20_users
+
         
 
 
@@ -432,7 +474,6 @@ class ProgramQueries:
 
         return user_ids
 
-    
     def query11(self):
         # All users who have registered transportation_mode and their most used transportation_mode
         # The answer should be in the format (user_id, most_used_transportation_mode) sorted by user_id
@@ -455,21 +496,26 @@ class ProgramQueries:
             },
             {
                 "$sort": {
-                    "_id.user_id": 1,  # Sort by user_id
-                    "mode_count": -1   # Sort by mode_count in descending order
+                    "_id.user_id": 1,       # Sort by user_id
+                    "mode_count": -1        # Sort by mode_count in descending order within each user's modes
                 }
             },
             {
                 "$group": {
                     "_id": "$_id.user_id",
-                    "most_used_transportation_mode": {"$first": "$_id.transportation_mode"},  # Get the most used transportation mode
-                    "mode_count": {"$first": "$mode_count"}  # Get the count of the most used mode (optional)
+                    "most_used_transportation_mode": {"$first": "$_id.transportation_mode"},  # Select the first (most-used mode) per user
+                    "mode_count": {"$first": "$mode_count"}  # Get the count for the most-used mode
                 }
             },
             {
-                "$sort": {
-                    "_id": 1  # Final sort by user_id
+                "$project": {
+                    "user_id": "$_id",
+                    "most_used_transportation_mode": 1,
+                    "_id": 0  # Exclude the _id field from the final output
                 }
+            },
+            {
+                "$sort": {"user_id": 1}  # Sort the final output by user_id
             }
         ]
 
@@ -477,14 +523,15 @@ class ProgramQueries:
         transportation_modes = list(self.db.Activity.aggregate(pipeline))
 
         # Format the results as a list of tuples (user_id, most_used_transportation_mode)
-        result = [(str(mode["_id"]), mode["most_used_transportation_mode"]) for mode in transportation_modes]
+        result = [(mode["user_id"], mode["most_used_transportation_mode"]) for mode in transportation_modes]
 
         # Print results using prettyprint
         print("Users who have registered transportation_mode and their most used transportation_mode:")
         for user_id, transportation_mode in result:
             pprint({"User ID": user_id, "Most used transportation mode": transportation_mode})
 
-        return result
+        return result    
+  
     
     def close_connection(self):
         self.connection.close_connection()
@@ -496,14 +543,14 @@ def main():
         # program.query1()
         # program.query2()
         # program.query3()
-        # program.query4()
+        program.query4()
         # program.query5()
         # program.query6()
         # program.query7()
         # program.query8()
         # program.query9()
         # program.query10()
-        program.query11()
+        # program.query11()
     except Exception as e:
         print("ERROR: Failed to use database:", e)
     finally:
