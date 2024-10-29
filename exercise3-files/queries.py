@@ -23,22 +23,22 @@ class ProgramQueries:
        
     
     def query2(self):
-    # Find the average number of activities per user
+        # Find the average number of activities per user
         
         pipeline = [
-                    {
-                        "$group": {
-                            "_id": "$user_id",  # Group by user_id
-                            "activities_per_user": { "$count": {} }  # Count the number of activities per user
-                        }
-                    },
-                    {
-                        "$group": {
-                            "_id": None,
-                            "average_activities_per_user": { "$avg": "$activities_per_user" }  # Calculate average
-                        }
-                    }
-                ]
+            {
+                "$group": {
+                    "_id": "$user_id",  # Group by user_id
+                    "activities_per_user": { "$sum": 1 }  # Count the number of activities per user
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "average_activities_per_user": { "$avg": "$activities_per_user" }  # Calculate average
+                }
+            }
+        ]
 
         # Run the aggregation pipeline
         result = self.db.Activity.aggregate(pipeline)
@@ -46,6 +46,7 @@ class ProgramQueries:
         # Retrieve and print the result
         for item in result:
             pprint(f"Average number of activities per user: {item['average_activities_per_user']:.2f}")
+
 
 
 
@@ -183,8 +184,9 @@ class ProgramQueries:
         return R * c
     
     def query7(self):
-    # Total distance (in km) walked in 2008 by user with id=112
-    # The total distance walked is the sum of the distances between consecutive trackpoints
+        print("Starting query7 to calculate total walking distance for user 112 in 2008...")
+
+        # Step 1: Find all walking activities for user 112 in 2008
         walking_activities = self.db.Activity.find({
             "user_id": 112,
             "transportation_mode": "walk",
@@ -192,22 +194,47 @@ class ProgramQueries:
         }, {"_id": 1})
 
         total_distance = 0
+        activity_count = 0  # Count the number of walking activities processed
 
-        for activity in walking_activities:
-            activity_id = activity["_id"]
+        print("Walking activities found:")
+        walking_activity_ids = [activity["_id"] for activity in walking_activities]  # Collect activity IDs for debugging
+        print(walking_activity_ids)
 
-            # Gwt the trackpoints for the activity
-            trackpoints = list(self.db.TrackPoint.find(
+        for activity_id in walking_activity_ids:
+            print(f"\nProcessing Activity ID: {activity_id}")
+            activity_count += 1  # Increment activity count
+
+            # Step 2: Retrieve trackpoints associated with the activity
+            trackpoints = list(self.db.Trackpoint.find(
                 {"activity_id": activity_id},
-                {"lat": 1, "lon": 1}
+                {"lat": 1, "lon": 1, "date_time": 1}
             ).sort("date_time", 1))
 
-            # Calculate the distance between consecutive trackpoints
+            if not trackpoints:
+                print(f"  No trackpoints found for Activity ID: {activity_id}")
+                continue
+
+            print(f"  Number of trackpoints found: {len(trackpoints)}")
+
+            # Step 3: Check if there are enough trackpoints to calculate a distance
+            if len(trackpoints) < 2:
+                print(f"  Skipping Activity ID {activity_id}: Less than 2 trackpoints.")
+                continue
+
+            # Step 4: Calculate distances between consecutive trackpoints
+            activity_distance = 0  # Total distance for this activity
             for i in range(1, len(trackpoints)):
                 lat1, lon1 = trackpoints[i - 1]["lat"], trackpoints[i - 1]["lon"]
                 lat2, lon2 = trackpoints[i]["lat"], trackpoints[i]["lon"]
-                total_distance += self.haversine(lat1, lon1, lat2, lon2)
+                distance = self.haversine(lat1, lon1, lat2, lon2)
+                activity_distance += distance
+                print(f"    Distance between point {i-1} and {i}: {distance:.4f} km")
 
+            print(f"  Total distance for Activity ID {activity_id}: {activity_distance:.4f} km")
+            total_distance += activity_distance  # Add activity distance to total
+
+        # Step 5: Print and return the total distance walked in 2008 by user 112
+        print(f"\nTotal walking activities processed for user 112: {activity_count}")
         pprint({
             "User ID": 112,
             "Year": 2008,
@@ -543,10 +570,10 @@ def main():
         # program.query1()
         # program.query2()
         # program.query3()
-        program.query4()
+        # program.query4()
         # program.query5()
         # program.query6()
-        # program.query7()
+        program.query7()
         # program.query8()
         # program.query9()
         # program.query10()
