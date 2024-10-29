@@ -225,6 +225,11 @@ class ProgramQueries:
     # Note: Remember that we are looking for altitude GAIN 
         query = [
             {
+                "$match": {
+                    "user_id": {"$exists": True}  # Only include valid users
+                }
+            },
+            {
                 "$lookup": {
                     "from": "TrackPoint",
                     "localField": "_id",
@@ -233,51 +238,45 @@ class ProgramQueries:
                 }
             },
             {
-                "$unwind": "$trackpoints"
-            },
-            {
                 "$match": {
-                    "trackpoints.altitude": {"$ne": -777} #invalid alt
-                }
-            },
-            {
-                "$group": {
-                    "_id": {"user_id": "$user_id"},
-                    "trackpoints": {"$push": "$trackpoints"}
+                    "trackpoints.altitude": {"$ne": -777}  # Exclude invalid altitudes
                 }
             }
         ]
 
+        # Execute the aggregation pipeline
         valid_activities = list(self.db.Activity.aggregate(query))
 
+        # Dictionary to store total altitude gain per user
         alt_gain_per_user = {}
 
         for activity in valid_activities:
-            user_id = activity["_id"]["user_id"]
-            trackpoints = activity["trackpoints"]
+            user_id = activity["user_id"]
+            trackpoints = sorted(activity["trackpoints"], key=lambda tp: tp["date_time"])
 
-            # at least 2 trackpoints to calculate gain in alt
+            # Ensure we have enough trackpoints to calculate altitude gain
             if len(trackpoints) < 2:
                 continue
 
             activity_total_gain = 0
-
             for i in range(1, len(trackpoints)):
-                curr_alt = trackpoints[i]["altitude"]
-                prev_alt = trackpoints[i - 1]["altitude"]
+                curr_alt = trackpoints[i].get("altitude")
+                prev_alt = trackpoints[i - 1].get("altitude")
 
-                if curr_alt > prev_alt:
-                    activity_total_gain += (curr_alt - prev_alt) * 0.3048 # convert to meters (1 foot = 0.3048 meters)
+                # Only add positive gains and ignore missing altitude values
+                if curr_alt is not None and prev_alt is not None and curr_alt > prev_alt:
+                    activity_total_gain += (curr_alt - prev_alt) * 0.3048  # Convert from feet to meters
 
+            # Sum the altitude gains per user
             if user_id in alt_gain_per_user:
                 alt_gain_per_user[user_id] += activity_total_gain
             else:
                 alt_gain_per_user[user_id] = activity_total_gain
-        
+
         # Sort users by total altitude gain and get the top 20
         top_20_users = sorted(alt_gain_per_user.items(), key=lambda x: x[1], reverse=True)[:20]
 
-        # Format the results as a table using tabulate and print it
+        # Format and display results
         table_data = [(user_id, f"{total_gain:.2f} meters") for user_id, total_gain in top_20_users]
         table = tabulate(table_data, headers=["User ID", "Total Altitude Gain"], tablefmt="pretty")
 
