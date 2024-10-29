@@ -61,16 +61,30 @@ def main():
         current_batch_size = 0
 
         for user in users:
+            if not isinstance(int(user.id), int):
+                raise TypeError(f"ID must be an integer, not a " + str(type(user.id)))
+            if not isinstance(user.has_labels, bool):
+                raise TypeError("has_labels must be a boolean, not a " + str(type(user.has_labels)))
             user_data = {
-                "_id": user.id,  # Custom ID
+                "_id": int(user.id),  # Custom ID
                 "has_labels": user.has_labels,
                 "activity_ids": []
             }
 
             for activity in user.activities:
+                if not isinstance(int(activity.id), int):
+                    raise TypeError("Activity ID must be an integer, not a " + str(type(activity.id)))
+                if not isinstance(int(activity.user_id), int):
+                    raise TypeError("Activity_ID must be an int, not a " + str(type(activity.user_id)))
+                # if not isinstance(activity.transportation_mode, str):
+                #     raise TypeError("Transportation_mode must be a string, not a " + str(type(activity.transportation_mode)))
+                if not isinstance(activity.start_date_time, datetime):
+                    raise TypeError("Activity start_date_time must be a datetime object, not " + str(type(activity.start_date_time)))
+                if not isinstance(activity.end_date_time, datetime):
+                    raise TypeError("Activity end date time must be a datetime object, not " + str(type(activity.end_date_time)))
                 activity_data = {
-                    "_id": activity.id,  # Custom ID
-                    "user_id": activity.user_id,
+                    "_id": int(activity.id),  # Custom ID
+                    "user_id": int(activity.user_id),
                     "transportation_mode": activity.transportation_mode,
                     "start_date_time": activity.start_date_time,
                     "end_date_time": activity.end_date_time,
@@ -78,12 +92,22 @@ def main():
                 }
 
                 for trackpoint in activity.trackpoints:
+                    if not isinstance(int(trackpoint.ID), int):
+                        raise TypeError("ID must be an integer, not " + str(type(trackpoint.ID)))
+                    if not isinstance(float(trackpoint.lat), float):
+                        raise TypeError("Latitude must be a double (float, not " + str(type(trackpoint.lat)))
+                    if not isinstance(float(trackpoint.lon), float):
+                        raise TypeError("Longitude must be a double (float), not " + str(type(trackpoint.lon)))
+                    if not isinstance(round(float(trackpoint.altitude)), int):
+                        raise TypeError("Altitude must be an integer, not " + str(type(trackpoint.altitude)))
+                    if not isinstance(trackpoint.date_time, datetime):
+                        raise TypeError("Trackpoint date time must be a datetime object, not " + str(type(trackpoint.date_time)))
                     trackpoint_data = {
-                        "_id": trackpoint.ID,  # Custom ID
-                        "activity_id": trackpoint.activity_id,
-                        "lat": trackpoint.lat,
-                        "lon": trackpoint.lon,
-                        "altitude": trackpoint.altitude,
+                        "_id": int(trackpoint.ID),  # Custom ID
+                        "activity_id": int(trackpoint.activity_id),
+                        "lat": float(trackpoint.lat),
+                        "lon": float(trackpoint.lon),
+                        "altitude": round(float(trackpoint.altitude)),
                         "date_time": trackpoint.date_time
                     }
                     # Calculate size of the document

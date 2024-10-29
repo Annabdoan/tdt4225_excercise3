@@ -112,14 +112,17 @@ def add_labels(users):
                         for user in users:
                             if user.id == directory:
                                 for activity in user.activities:
-                                    # Scenario where the label is "inside" the activity
-                                    if activity.start_date_time <= start_time and end_time <= activity.end_date_time:
-                                        if (activity.durationlabel < (end_time - start_time).total_seconds()):
-                                            activity.transportation_mode = transportation_mode
-                                    # Scenario where the activity is "inside" the label
-                                    elif start_time <= activity.start_date_time and  activity.end_date_time <= end_time:
-                                        if (activity.durationlabel < (end_time - start_time).total_seconds()):
-                                            activity.transportation_mode = transportation_mode
+                                    # Scenario where the label is exactly the same as the activity
+                                    if activity.start_date_time == start_time and activity.end_date_time == end_time:
+                                        activity.transportation_mode = transportation_mode
+                                    # # Scenario where the label is "inside" the activity
+                                    # if activity.start_date_time <= start_time and end_time <= activity.end_date_time:
+                                    #     if (activity.durationlabel < (end_time - start_time).total_seconds()):
+                                    #         activity.transportation_mode = transportation_mode
+                                    # # Scenario where the activity is "inside" the label
+                                    # elif start_time <= activity.start_date_time and  activity.end_date_time <= end_time:
+                                    #     if (activity.durationlabel < (end_time - start_time).total_seconds()):
+                                    #         activity.transportation_mode = transportation_mode
                     
                             
     return users
