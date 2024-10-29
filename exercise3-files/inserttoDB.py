@@ -76,14 +76,15 @@ def main():
                     raise TypeError("Activity ID must be an integer, not a " + str(type(activity.id)))
                 if not isinstance(int(activity.user_id), int):
                     raise TypeError("Activity_ID must be an int, not a " + str(type(activity.user_id)))
-                # if not isinstance(activity.transportation_mode, str):
-                #     raise TypeError("Transportation_mode must be a string, not a " + str(type(activity.transportation_mode)))
                 if not isinstance(activity.start_date_time, datetime):
                     raise TypeError("Activity start_date_time must be a datetime object, not " + str(type(activity.start_date_time)))
                 if not isinstance(activity.end_date_time, datetime):
                     raise TypeError("Activity end date time must be a datetime object, not " + str(type(activity.end_date_time)))
+                
+                # Use activity's assigned ID to track point insertion
+                activity_id = activity.id  # Ensure trackpoints reference this specific activity ID
                 activity_data = {
-                    "_id": int(activity.id),  # Custom ID
+                    "_id": activity_id,  # Custom ID
                     "user_id": int(activity.user_id),
                     "transportation_mode": activity.transportation_mode,
                     "start_date_time": activity.start_date_time,
@@ -95,16 +96,17 @@ def main():
                     if not isinstance(int(trackpoint.ID), int):
                         raise TypeError("ID must be an integer, not " + str(type(trackpoint.ID)))
                     if not isinstance(float(trackpoint.lat), float):
-                        raise TypeError("Latitude must be a double (float, not " + str(type(trackpoint.lat)))
+                        raise TypeError("Latitude must be a double (float), not " + str(type(trackpoint.lat)))
                     if not isinstance(float(trackpoint.lon), float):
                         raise TypeError("Longitude must be a double (float), not " + str(type(trackpoint.lon)))
                     if not isinstance(round(float(trackpoint.altitude)), int):
                         raise TypeError("Altitude must be an integer, not " + str(type(trackpoint.altitude)))
                     if not isinstance(trackpoint.date_time, datetime):
                         raise TypeError("Trackpoint date time must be a datetime object, not " + str(type(trackpoint.date_time)))
+                    
                     trackpoint_data = {
                         "_id": int(trackpoint.ID),  # Custom ID
-                        "activity_id": int(trackpoint.activity_id),
+                        "activity_id": activity_id,  # Ensure this trackpoint refers to the correct activity
                         "lat": float(trackpoint.lat),
                         "lon": float(trackpoint.lon),
                         "altitude": round(float(trackpoint.altitude)),
