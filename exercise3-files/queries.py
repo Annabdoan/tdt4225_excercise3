@@ -24,8 +24,7 @@ class ProgramQueries:
     
     def query2(self):
         # Find the average number of activities per user
-        
-        pipeline = [
+        query = [
             {
                 "$group": {
                     "_id": "$user_id",  # Group by user_id
@@ -40,8 +39,8 @@ class ProgramQueries:
             }
         ]
 
-        # Run the aggregation pipeline
-        result = self.db.Activity.aggregate(pipeline)
+        # Run the aggregation query
+        result = self.db.Activity.aggregate(query)
 
         # Retrieve and print the result
         for item in result:
@@ -175,6 +174,7 @@ class ProgramQueries:
         return year_most_activities, year_most_hours
 
 
+    # Define haversine function, could not get haversine package to work
     def haversine(self, lat1, lon1, lat2, lon2):
         R = 6371.0  # Radius of earth in km
         dlat = radians(lat2 - lat1)
@@ -186,7 +186,7 @@ class ProgramQueries:
     def query7(self):
         print("Starting query7 to calculate total walking distance for user 112 in 2008...")
 
-        # Step 1: Find all walking activities for user 112 in 2008
+        # Step 1: All walking activities for user 112 in 2008
         walking_activities = self.db.Activity.find({
             "user_id": 112,
             "transportation_mode": "walk",
@@ -194,7 +194,7 @@ class ProgramQueries:
         }, {"_id": 1})
 
         total_distance = 0
-        activity_count = 0  # Count the number of walking activities processed
+        activity_count = 0  
 
         print("Walking activities found:")
         walking_activity_ids = [activity["_id"] for activity in walking_activities]  # Collect activity IDs for debugging
@@ -202,9 +202,9 @@ class ProgramQueries:
 
         for activity_id in walking_activity_ids:
             print(f"\nProcessing Activity ID: {activity_id}")
-            activity_count += 1  # Increment activity count
+            activity_count += 1 
 
-            # Step 2: Retrieve trackpoints associated with the activity
+            # Step 2: Retrieve trackpoints for each activity
             trackpoints = list(self.db.Trackpoint.find(
                 {"activity_id": activity_id},
                 {"lat": 1, "lon": 1, "date_time": 1}
@@ -216,12 +216,12 @@ class ProgramQueries:
 
             print(f"  Number of trackpoints found: {len(trackpoints)}")
 
-            # Step 3: Check if there are enough trackpoints to calculate a distance
+            # Step 3: Must be more than two trackpoints to calculate distance
             if len(trackpoints) < 2:
                 print(f"  Skipping Activity ID {activity_id}: Less than 2 trackpoints.")
                 continue
 
-            # Step 4: Calculate distances between consecutive trackpoints
+            # Step 4: Find distances between consecutive trackpoints
             activity_distance = 0  # Total distance for this activity
             for i in range(1, len(trackpoints)):
                 lat1, lon1 = trackpoints[i - 1]["lat"], trackpoints[i - 1]["lon"]
@@ -231,7 +231,7 @@ class ProgramQueries:
                 print(f"    Distance between point {i-1} and {i}: {distance:.4f} km")
 
             print(f"  Total distance for Activity ID {activity_id}: {activity_distance:.4f} km")
-            total_distance += activity_distance  # Add activity distance to total
+            total_distance += activity_distance 
 
         # Step 5: Print and return the total distance walked in 2008 by user 112
         print(f"\nTotal walking activities processed for user 112: {activity_count}")
@@ -245,10 +245,9 @@ class ProgramQueries:
     
 
     def query8(self):
-        print("Running aggregation pipeline...")
+        print("Running query...")
 
-        # Adjusted pipeline
-        pipeline = [
+        query = [
             {
                 "$lookup": {
                     "from": "Trackpoint",
@@ -259,7 +258,7 @@ class ProgramQueries:
             },
             {
                 "$match": {
-                    "trackpoints": {"$ne": []}  # Ensures only activities with trackpoints are considered
+                    "trackpoints": {"$ne": []} 
                 }
             },
             {
@@ -267,7 +266,7 @@ class ProgramQueries:
             },
             {
                 "$match": {
-                    "trackpoints.altitude": {"$ne": -777}  # Filters out invalid altitudes
+                    "trackpoints.altitude": {"$ne": -777} 
                 }
             },
             {
@@ -278,11 +277,10 @@ class ProgramQueries:
             }
         ]
 
-        # Run the aggregation pipeline
-        valid_activities = list(self.db.Activity.aggregate(pipeline))
-        print(f"Number of valid activities returned after pipeline: {len(valid_activities)}")
+        valid_activities = list(self.db.Activity.aggregate(query))
+        print(f"Number of valid activities returned after query: {len(valid_activities)}")
 
-        # Ensure there are valid activities to process
+        # Ensure valid activities to process
         if not valid_activities:
             print("No activities found with valid altitude data.")
             return []
@@ -370,8 +368,7 @@ class ProgramQueries:
         # Retrieve users who have labels
         users_with_labels = self.db.User.distinct("_id", {"has_labels": True})
 
-        # Aggregation pipeline
-        pipeline = [
+        query = [
             {
                 "$match": {
                     "user_id": {"$in": users_with_labels}  # Only users with labels
@@ -404,12 +401,12 @@ class ProgramQueries:
         ]
 
         # Get activities with their trackpoints
-        activities = list(self.db.Activity.aggregate(pipeline))
+        activities = list(self.db.Activity.aggregate(query))
         
         # Dictionary to store invalid activity count per user
         invalid_activities_per_user = {}
 
-        # Process each activity's trackpoints to check for invalid time deviations
+        # Process each activity trackpoints to check for invalid time deviations
         for activity in activities:
             user_id = activity['user_id']
             trackpoints = activity['trackpoints']
@@ -433,7 +430,6 @@ class ProgramQueries:
         # Sort users by user_id for output
         sorted_invalid_activities = sorted(invalid_activities_per_user.items())
 
-        # Print the results using prettyprint
         print("Users with invalid activities (time deviation >= 5 minutes):")
         for user_id, invalid_count in sorted_invalid_activities:
             pprint({
@@ -460,7 +456,7 @@ class ProgramQueries:
         })
         print(f"Trackpoints in Forbidden City range: {trackpoints_in_range}")
 
-        pipeline = [
+        query = [
             {
                 "$match": {
                     "lat": {"$gte": 39.915, "$lte": 39.917},  # Latitude range
@@ -485,8 +481,8 @@ class ProgramQueries:
             }
         ]
 
-        # Execute the aggregation pipeline
-        users_forbidden_city = list(self.db.Trackpoint.aggregate(pipeline))
+        # Execute the aggregation query
+        users_forbidden_city = list(self.db.Trackpoint.aggregate(query))
 
         # Extract user IDs from the result
         user_ids = [user["_id"] for user in users_forbidden_city]
@@ -506,7 +502,7 @@ class ProgramQueries:
         # The answer should be in the format (user_id, most_used_transportation_mode) sorted by user_id
         # Do not count the rows where the mode is null
 
-        pipeline = [
+        query = [
             {
                 "$match": {
                     "transportation_mode": {"$ne": None}  # Exclude rows with null transportation_mode
@@ -546,13 +542,12 @@ class ProgramQueries:
             }
         ]
 
-        # Execute the aggregation pipeline
-        transportation_modes = list(self.db.Activity.aggregate(pipeline))
+        # Execute the aggregation query
+        transportation_modes = list(self.db.Activity.aggregate(query))
 
         # Format the results as a list of tuples (user_id, most_used_transportation_mode)
         result = [(mode["user_id"], mode["most_used_transportation_mode"]) for mode in transportation_modes]
 
-        # Print results using prettyprint
         print("Users who have registered transportation_mode and their most used transportation_mode:")
         for user_id, transportation_mode in result:
             pprint({"User ID": user_id, "Most used transportation mode": transportation_mode})
@@ -573,7 +568,7 @@ def main():
         # program.query4()
         # program.query5()
         # program.query6()
-        program.query7()
+        # program.query7()
         # program.query8()
         # program.query9()
         # program.query10()
